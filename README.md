@@ -1,2 +1,3 @@
-# zuber-eats-backend
-The Backend of Zuber Eats Clone
+# Zuber Eats
+
+The Backend of Zuber Eats Clone 
