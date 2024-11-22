@@ -5,10 +5,10 @@ import {ConfigModule} from "@nestjs/config";
 import * as process from "process";
 import * as Joi from "joi";
 import { UsersModule } from './users/users.module';
-import { CommonModule } from './common/common.module';
 import { RestaurantsModule } from './restaurants/restaurants.module';
 import { JwtModule } from './jwt/jwt.module';
 import { JwtMiddleware } from './jwt/jwt.middleware';
+import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({ 
@@ -48,6 +48,8 @@ import { AuthModule } from './auth/auth.module';
     }),
     RestaurantsModule,
     UsersModule,
+    CommonModule,
+    AuthModule,
   ],
   controllers: [],
   providers: [],

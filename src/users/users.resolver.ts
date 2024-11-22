@@ -11,7 +11,9 @@ import { UserProfileInput } from "./dto/user-profile.dto";
 
 @Resolver(() => User)
 export class UsersResolver {
-    constructor(private readonly usersService: UsersService){}
+    constructor(
+        private readonly usersService: UsersService
+    ){}
 
     @Mutation(returns => CreateAccountOutput)
     async createAccount(
@@ -52,16 +54,13 @@ export class UsersResolver {
     @Query(type => User)
     @UseGuards(AuthGuard)
     me(@AuthUser() authUser: User) {
-        console.log(authUser)
         return authUser;
     } 
 
     @UseGuards(AuthUser)
     @Query(returns => User)
-    user(@Args() userProfileInput: UserProfileInput) {
+    userProfile(@Args() userProfileInput: UserProfileInput) {
 
+        return this.usersService.findById(userProfileInput.userId)
     }
-
-
-
 }

@@ -11,7 +11,6 @@ import { JwtService } from "src/jwt/jwt.service";
 export class UsersService {
     constructor(
         @InjectRepository(User) private readonly users: Repository<User>,
-        private readonly config: ConfigService,
         private readonly jwtService: JwtService,
     ) {}
 
