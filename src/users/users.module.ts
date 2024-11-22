@@ -10,8 +10,10 @@ import { UsersService } from './users.service';
     ],
     providers: [
         UsersResolver,
-        UsersService,
-
+        UsersService,        
     ],
+    exports: [
+        UsersService,
+    ]
 })
 export class UsersModule {}

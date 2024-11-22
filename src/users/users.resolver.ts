@@ -1,9 +1,13 @@
-import { Args, Mutation, Resolver } from "@nestjs/graphql";
+import { Args, Context, Mutation, Resolver } from "@nestjs/graphql";
 import { User } from "./entities/user.entity";
 import { UsersService } from "./users.service";
 import { CreateAccountInput, CreateAccountOutput } from "./dto/create-account.dto";
 import {LoginInput, LoginOutput} from "./dto/login.dto";
-import { error } from "console";
+import { Query } from "@nestjs/graphql";
+import { UseGuards } from "@nestjs/common";
+import { AuthGuard } from "src/auth/auth.guard";
+import { AuthUser } from "src/auth/auth-user.decorator";
+import { UserProfileInput } from "./dto/user-profile.dto";
 
 @Resolver(() => User)
 export class UsersResolver {
@@ -44,4 +48,20 @@ export class UsersResolver {
             }
         }
     }
+
+    @Query(type => User)
+    @UseGuards(AuthGuard)
+    me(@AuthUser() authUser: User) {
+        console.log(authUser)
+        return authUser;
+    } 
+
+    @UseGuards(AuthUser)
+    @Query(returns => User)
+    user(@Args() userProfileInput: UserProfileInput) {
+
+    }
+
+
+
 }

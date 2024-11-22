@@ -28,7 +28,7 @@ export class User extends CoreEntity {
 
   @Column({type: "enum", enum: UserRole})
   @Field(type => UserRole)
-  @IsEnum(User)
+  @IsEnum(UserRole)
   role: UserRole;
 
   @BeforeInsert()

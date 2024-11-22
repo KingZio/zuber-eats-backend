@@ -3,7 +3,7 @@ import { Repository } from "typeorm";
 import { User } from "./entities/user.entity";
 import {CreateAccountInput} from "./dto/create-account.dto";
 import { LoginInput } from "./dto/login.dto";
-import { InternalServerErrorException } from "@nestjs/common";
+import { Global, InternalServerErrorException } from "@nestjs/common";
 import * as jwt from 'jsonwebtoken'
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "src/jwt/jwt.service";
@@ -45,14 +45,22 @@ export class UsersService {
                     error: "Password not correct"
                 }
             }
-            const token: string = jwt.sign({id: user.id}, this.config.get("SECRET_KEY"));
+            const token = this.jwtService.sign(user.id);
             return {
                 ok: true,
                 token
             }
         } catch (e) {
-            console.log(e)
-            throw new InternalServerErrorException();
+            return {
+                ok: false,
+                error: e
+            }
         }
     }
+
+    async findById(id: number): Promise<User> {
+        return this.users.findOne({ id });
+    }
+
+    
 }
