@@ -7,7 +7,8 @@ import { Query } from "@nestjs/graphql";
 import { UseGuards } from "@nestjs/common";
 import { AuthGuard } from "src/auth/auth.guard";
 import { AuthUser } from "src/auth/auth-user.decorator";
-import { UserProfileInput } from "./dto/user-profile.dto";
+import { UserProfileInput, UserProfileOutput } from "./dto/user-profile.dto";
+import { EditProfileInput, EditProfileOutput } from "./dto/edit-profile.dto";
 
 @Resolver(() => User)
 export class UsersResolver {
@@ -57,10 +58,34 @@ export class UsersResolver {
         return authUser;
     } 
 
-    @UseGuards(AuthUser)
-    @Query(returns => User)
-    userProfile(@Args() userProfileInput: UserProfileInput) {
-
-        return this.usersService.findById(userProfileInput.userId)
+    @UseGuards(AuthGuard)
+    @Query(returns => UserProfileOutput)
+    async userProfile(
+        @Args() userProfileInput: UserProfileInput,
+    ): Promise<UserProfileOutput> {
+        try {
+        const user = await this.usersService.findById(userProfileInput.userId);
+        if (!user) {
+            throw Error();
+        }
+        return {
+            ok: true,
+            user,
+        };
+        } catch (e) {
+        return {
+            error: 'User Not Found',
+            ok: false,
+        };
+        }
     }
+
+    @UseGuards(AuthGuard)
+    @Mutation(returns => EditProfileOutput)
+    async editProfile(
+        @AuthUser() authUser: User, // 인증된 사용자
+        @Args('input') input: EditProfileInput // 입력값 DTO
+    ): Promise<EditProfileOutput> {
+        return this.usersService.editProfile(authUser.id, input);
+    } 
 }

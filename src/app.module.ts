@@ -30,7 +30,7 @@ import { AuthModule } from './auth/auth.module';
     }),
     GraphQLModule.forRoot({
       autoSchemaFile: true,
-      context: ({req}) => ({user: req['user']}),
+      context: ({req}) => ({user: req['user'], tokenError: req['tokenError']}),
     }),
     TypeOrmModule.forRoot({
       type: 'postgres',
