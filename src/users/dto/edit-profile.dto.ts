@@ -6,11 +6,11 @@ import { User } from "../entities/user.entity";
 @InputType()
 export class EditProfileInput {
 
-    @Field(type => String, {nullable: true})
-    email: string;
-
     @Field(type => String)
     currentPwd: string;
+
+    @Field(type => String, {nullable: true})
+    email: string;
 
     @Field(type => String, {nullable: true})
     newPwd?: string;

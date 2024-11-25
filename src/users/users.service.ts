@@ -6,11 +6,16 @@ import { LoginInput } from "./dto/login.dto";
 import { JwtService } from "src/jwt/jwt.service";
 import * as bcrypt from 'bcrypt';
 import { EditProfileInput, EditProfileOutput } from "./dto/edit-profile.dto";
+import { Verification } from "./entities/verification.entity";
+import { VerifyEmailInput, VerifyEmailOutput } from "./dto/verify-email.dto";
+import { Args, Mutation } from "@nestjs/graphql";
+import { ok } from "assert";
 
 export class UsersService {
     usersService: any;
     constructor(
         @InjectRepository(User) private readonly users: Repository<User>,
+        @InjectRepository(Verification) private readonly verifications: Repository<Verification>,
         private readonly jwtService: JwtService,
     ) {}
 
@@ -20,7 +25,14 @@ export class UsersService {
             if (exists) {
                 return [false, "There is a user with the email"];
             }
-            await this.users.save(this.users.create({email, password, role}))
+            const user = await this.users.save(
+                this.users.create({ email, password, role }),
+              );
+              await this.verifications.save(
+                this.verifications.create({
+                  user,
+                }),
+              );
             return [true]
         } catch (e) {
             return [false, "Couldn't create account"];
@@ -29,7 +41,7 @@ export class UsersService {
 
     async login({email, password}: LoginInput): Promise<{ok: boolean, error?: string, token?: string}> {
         try {
-            const user = await this.users.findOne({email})
+            const user = await this.users.findOne({email}, {select: ["password"]})
             if (!user) {
                 return {
                     ok: false,
@@ -70,11 +82,11 @@ export class UsersService {
       }
     
     async editProfile(
-        userId: number,
+        id: number,
         { currentPwd, newPwd, email }: EditProfileInput
     ): Promise<EditProfileOutput> {
         try {
-            const user = await this.findById(userId);
+            const user = await this.users.findOne({ id }, { select: ["password", "email"] });
             if (!user) {
                 return { ok: false, error: "User not found" };
             }
@@ -92,15 +104,40 @@ export class UsersService {
         
             // 이메일 업데이트
             if (email) {
+                // 이메일 인증 구현 중 ....
+
                 user.email = email;
+                user.verified = false
+                await this.users.save(user)
             }
         
             // 업데이트된 사용자 정보 저장
-            await this.users.save(user);
+            await this.verifications.save(
+                this.verifications.create({ user })
+            );
         
             return { ok: true };
         } catch (error) {
             return { ok: false, error: "Could not update profile" };
+        }
+    }
+
+    async verifyEmail(code: string): Promise<boolean> {
+        try {
+            const verification = await this.verifications.findOne(
+                { code },
+                { relations: ['user'] },
+            );
+            if (verification) {
+                verification.user.verified = true;
+                console.log(verification.user);
+                this.users.save(verification.user);
+                return true;
+            }
+            throw new Error();
+        } catch (e) {
+            console.log(e);
+            return false;
         }
     }
 }

@@ -9,11 +9,13 @@ import { AuthGuard } from "src/auth/auth.guard";
 import { AuthUser } from "src/auth/auth-user.decorator";
 import { UserProfileInput, UserProfileOutput } from "./dto/user-profile.dto";
 import { EditProfileInput, EditProfileOutput } from "./dto/edit-profile.dto";
+import { VerifyEmailInput, VerifyEmailOutput } from "./dto/verify-email.dto";
+import { Code } from "typeorm";
 
 @Resolver(() => User)
 export class UsersResolver {
     constructor(
-        private readonly usersService: UsersService
+        private readonly usersService: UsersService,
     ){}
 
     @Mutation(returns => CreateAccountOutput)
@@ -88,4 +90,21 @@ export class UsersResolver {
     ): Promise<EditProfileOutput> {
         return this.usersService.editProfile(authUser.id, input);
     } 
+
+    @Mutation(returns => VerifyEmailOutput)
+    async verifyEmail(
+        @Args('input') { code }: VerifyEmailInput,
+      ): Promise<VerifyEmailOutput> {
+        try {
+          await this.usersService.verifyEmail(code);
+          return {
+            ok: true,
+          };
+        } catch (error) {
+          return {
+            ok: false,
+            error,
+          };
+        }
+    }
 }
