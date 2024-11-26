@@ -1,15 +1,14 @@
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { User } from "./entities/user.entity";
-import {CreateAccountInput} from "./dto/create-account.dto";
-import { LoginInput } from "./dto/login.dto";
+import { CreateAccountInput, CreateAccountOutput } from "./dto/create-account.dto";
+import { LoginInput, LoginOutput } from "./dto/login.dto";
 import { JwtService } from "src/jwt/jwt.service";
 import * as bcrypt from 'bcrypt';
 import { EditProfileInput, EditProfileOutput } from "./dto/edit-profile.dto";
 import { Verification } from "./entities/verification.entity";
-import { VerifyEmailInput, VerifyEmailOutput } from "./dto/verify-email.dto";
-import { Args, Mutation } from "@nestjs/graphql";
-import { ok } from "assert";
+import { UserProfileOutput } from "./dto/user-profile.dto";
+import { MailService } from "src/mail/mail.service";
 
 export class UsersService {
     usersService: any;
@@ -17,39 +16,36 @@ export class UsersService {
         @InjectRepository(User) private readonly users: Repository<User>,
         @InjectRepository(Verification) private readonly verifications: Repository<Verification>,
         private readonly jwtService: JwtService,
+        private readonly mailService: MailService,
     ) {}
 
-    async createAccount({email, password, role,}: CreateAccountInput): Promise<[boolean, string?]> {
+    async createAccount({email, password, role,}: CreateAccountInput): Promise<CreateAccountOutput> {
         try {
-            const exists = await this.users.findOne({email})
-            if (exists) {
-                return [false, "There is a user with the email"];
-            }
-            const user = await this.users.save(
-                this.users.create({ email, password, role }),
-              );
-              await this.verifications.save(
-                this.verifications.create({
-                  user,
-                }),
-              );
-            return [true]
+          const exists = await this.users.findOne({ email });
+          if (exists) {
+            return { ok: false, error: 'There is a user with that email already' };
+          }
+          const user = await this.users.save(
+            this.users.create({ email, password, role }),
+          );
+          const verification = await this.verifications.save(this.verifications.create({ user }));
+          await this.mailService.verifySendEmail("인증코드", verification.code, user.email)
+          return { ok: true };
         } catch (e) {
-            return [false, "Couldn't create account"];
+          return { ok: false, error: "Couldn't create account" };
         }
-    }
+      }
 
-    async login({email, password}: LoginInput): Promise<{ok: boolean, error?: string, token?: string}> {
+      async login({ email, password }: LoginInput): Promise<LoginOutput> {
         try {
-            const user = await this.users.findOne({email}, {select: ["password"]})
+            const user = await this.users.findOne({email}, {select: ["id", "email", "password"]})
             if (!user) {
                 return {
                     ok: false,
                     error: "User not found"
                 }
             }
-            const passwordCorrect = await user.checkPassword(password)
-            console.log(passwordCorrect)
+            const passwordCorrect = await user.checkPassword(password);
             if(!passwordCorrect) {
                 return {
                     ok: false,
@@ -69,9 +65,19 @@ export class UsersService {
         }
     }
 
-    async findById(id: number): Promise<User> {
-        return this.users.findOne({ id });
-    }
+    async findById(id: number): Promise<UserProfileOutput> {
+        try {
+          const user = await this.users.findOne({ id }, {select: ['id', 'email', 'password', 'verified']});
+          if (user) {
+            return {
+              ok: true,
+              user: user,
+            };
+          }
+        } catch (error) {
+          return { ok: false, error: 'User Not Found' };
+        }
+      }
 
     async comparePwd(inputPwd: string, storedPwd: string): Promise<boolean> {
         try {
@@ -80,45 +86,91 @@ export class UsersService {
           return false;
         }
       }
+
+      generateVerificationCode(): string {
+        return Math.random().toString(36).substring(2, 8); // 6자리 랜덤 문자열 생성
+      }
     
-    async editProfile(
+    
+      async editProfile(
         id: number,
         { currentPwd, newPwd, email }: EditProfileInput
     ): Promise<EditProfileOutput> {
         try {
-            const user = await this.users.findOne({ id }, { select: ["password", "email"] });
+            const user = await this.users.findOne(
+                { id }, 
+                { select: ["id", "password", "email"] }
+            );
+
             if (!user) {
                 return { ok: false, error: "User not found" };
             }
-      
-            // 현재 비밀번호 검증 (항상 필요)
+    
+            // 비밀번호 검증
             const isPasswordCorrect = await this.comparePwd(currentPwd, user.password);
             if (!isPasswordCorrect) {
                 return { ok: false, error: "Current password is incorrect" };
             }
-        
-            // 새 비밀번호 업데이트
-            if (newPwd) {
-                user.password = await bcrypt.hash(newPwd, 10); // 새 비밀번호 해싱
+    
+            // 비밀번호만 변경
+            if (newPwd && !email) {
+                user.password = await bcrypt.hash(newPwd, 10);
+                await this.users.save(user);
+                return { ok: true };
             }
+    
+            if (email && !newPwd) {
+              user.email = email;
+              user.verified = false;
+              await this.users.save(user);
         
-            // 이메일 업데이트
-            if (email) {
-                // 이메일 인증 구현 중 ....
-
-                user.email = email;
-                user.verified = false
-                await this.users.save(user)
-            }
+              // 기존 verification 삭제
+              await this.verifications.delete({ user });
         
-            // 업데이트된 사용자 정보 저장
-            await this.verifications.save(
+              // 새로운 verification 생성
+              const verification = await this.verifications.save(
                 this.verifications.create({ user })
-            );
+              );
         
-            return { ok: true };
+              // 인증 메일 발송
+              await this.mailService.verifySendEmail(
+                '인증코드',
+                verification.code,
+                email,
+              );
+        
+              return { ok: true };
+            }
+
+    
+            if (email && newPwd) {
+              user.password = await bcrypt.hash(newPwd, 10);;
+              user.email = email;
+              user.verified = false;
+              await this.users.save(user);
+        
+              // 기존 verification 삭제
+              await this.verifications.delete({ user });
+        
+              // 새로운 verification 생성
+              const verification = await this.verifications.save(
+                this.verifications.create({ user })
+              );
+        
+              // 인증 메일 발송
+              await this.mailService.verifySendEmail(
+                '인증코드',
+                verification.code,
+                email,
+              );
+        
+              return { ok: true };
+            }
+    
+            return { ok: false, error: "Nothing to update" };
         } catch (error) {
-            return { ok: false, error: "Could not update profile" };
+          console.log(error)
+          return { ok: false, error: "Could not update profile" };
         }
     }
 
@@ -130,8 +182,8 @@ export class UsersService {
             );
             if (verification) {
                 verification.user.verified = true;
-                console.log(verification.user);
-                this.users.save(verification.user);
+                await this.users.save(verification.user);
+                await this.verifications.delete(verification.id);
                 return true;
             }
             throw new Error();
